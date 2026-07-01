@@ -90,9 +90,10 @@ emcc --version
    ```bash
    emcc shared_struct.c \
      -s EXPORTED_FUNCTIONS='["_init_packet","_process_packet","_free_packet"]' \
-  		 -s EXPORTED_RUNTIME_METHODS='["HEAP32"]' \
-  		 -O2 \
- 		 -o shared_struct.js
+     -s MODULARIZE=1 \
+     -s EXPORT_NAME='Module' \
+     -O2 \
+     -o shared_struct.js
    ```
 
    This produces `shared_struct.js` and `shared_struct.wasm`, which
