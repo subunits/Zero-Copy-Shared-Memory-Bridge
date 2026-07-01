@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Tidy Console Interface</title>
+  <style>
+    /* Styling to make it look like a clean, readable terminal */
+    #web-console {
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      font-family: 'Courier New', Courier, monospace;
+      padding: 15px;
+      border-radius: 6px;
+      max-height: 400px;
+      overflow-y: auto;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    }
+    .log-line {
+      margin-bottom: 6px;
+      border-bottom: 1px solid #2d2d2d;
+      padding-bottom: 4px;
+    }
+    .log-line .timestamp {
+      color: #858585;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Application Output</h2>
+  <pre id="web-console"></pre>
+
+  <script>
+    (function() {
+      const consoleDisplay = document.getElementById('web-console');
+      const originalLog = console.log;
+
+      console.log = function(...args) {
+        // 1. Maintain the default browser console functionality
+        originalLog.apply(console, args);
+
+        // 2. Format the arguments cleanly into a string
+        const message = args.map(arg => {
+          if (typeof arg === 'object') {
+            return JSON.stringify(arg, null, 2); // Tidy formatting for objects/structs
+          }
+          return arg;
+        }).join(' ');
+
+        // 3. Create a clean visual row with a timestamp
+        const logLine = document.createElement('div');
+        logLine.className = 'log-line';
+        
+        const timestamp = new Date().toLocaleTimeString();
+        logLine.innerHTML = `<span class="timestamp">[${timestamp}]</span>${message}`;
+
+        // 4. Append to the interface and auto-scroll to the bottom
+        consoleDisplay.appendChild(logLine);
+        consoleDisplay.scrollTop = consoleDisplay.scrollHeight;
+      };
+    })();
+
+    // --- Example Usage ---
+    console.log("System initialized.");
+    console.log("Fetching struct packet...", { id: 101, value: 2.5, active: 1 });
+  </script>
+
+</body>
+</html>
