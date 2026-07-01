@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Bare-Metal Shared Struct Demo</title>
+</head>
+<body>
+  <script src="shared_struct.js"></script>
+  <script>
+    const StructBridge = {
+      ptr: null,
+
+      init() {
+        this.ptr = _init_packet();
+      },
+
+      write(id, val, active) {
+        // Map views directly to the pointer address
+        const i32 = new Int32Array(Module.HEAP32.buffer, this.ptr, 3);
+        const f32 = new Float32Array(Module.HEAP32.buffer, this.ptr, 3);
+        
+        i32[0] = id;       // id (offset 0)
+        f32[1] = val;      // value (offset 4)
+        i32[2] = active;   // active (offset 8)
+      },
+
+      process() {
+        _process_packet(this.ptr);
+      },
+
+      read() {
+        const i32 = new Int32Array(Module.HEAP32.buffer, this.ptr, 3);
+        const f32 = new Float32Array(Module.HEAP32.buffer, this.ptr, 3);
+        return { id: i32[0], value: f32[1], active: i32[2] };
+      },
+
+      free() {
+        if (this.ptr) {
+            _free_packet(this.ptr);
+            this.ptr = null;
+        }
+      }
+    };
+
+    Module.onRuntimeInitialized = () => {
+      StructBridge.init();
+      
+      StructBridge.write(101, 2.5, 1);
+      console.log("Input:", StructBridge.read());
+      
+      StructBridge.process();
+      console.log("Output:", StructBridge.read());
+
+      window.addEventListener("beforeunload", () => StructBridge.free());
+    };
+  </script>
+</body>
+</html>
