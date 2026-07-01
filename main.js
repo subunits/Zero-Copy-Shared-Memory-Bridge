@@ -1,19 +1,34 @@
-Module.onRuntimeInitialized = () => {
-    // Initialization via abstraction
-    const packet = new DataPacketBridge(_init_packet());
+function runBridgeDemo() {
+    console.log("System runtime connected. Executing Class-Bridge memory operations...");
 
-    // Clean setter API
-    packet.id = 101;
-    packet.value = 2.5;
-    packet.active = 1;
+    setTimeout(() => {
+        try {
+            const initFn = window._init_packet || (window.Module && window.Module._init_packet);
+            const freeFn = window._free_packet || (window.Module && window.Module._free_packet);
+            if (!initFn) throw new Error("WASM _init_packet function not found!");
 
-    console.log("Input:", { id: packet.id, val: packet.value });
+            const packet = new DataPacketBridge(initFn());
 
-    // Logical processing triggered via abstraction
-    packet.process();
+            packet.id = 101;
+            packet.value = 2.5;
+            packet.active = 1;
 
-    console.log("Output:", { id: packet.id, val: packet.value });
+            console.log("Input Layout Data:", { id: packet.id, value: packet.value, active: packet.active });
 
-    // Cleanup
-    _free_packet(packet.ptr);
-};
+            packet.process();
+
+            console.log("Output Layout Data (Processed in C):", { id: packet.id, value: packet.value, active: packet.active });
+
+            if (freeFn) freeFn(packet.ptr);
+        } catch (err) {
+            console.log("Execution Error: " + err.message);
+        }
+    }, 50);
+}
+
+if (window.Module && window.Module.runtimeInitialized) {
+    runBridgeDemo();
+} else {
+    window.Module = window.Module || {};
+    window.Module.onRuntimeInitialized = runBridgeDemo;
+}
