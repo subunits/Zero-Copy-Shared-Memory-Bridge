@@ -2,57 +2,135 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Bare-Metal Shared Struct Demo</title>
+  <title>Bare-Metal Shared Struct Demo (Tidy Console)</title>
+  <style>
+    #web-console {
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      font-family: 'Courier New', Courier, monospace;
+      padding: 15px;
+      border-radius: 6px;
+      max-height: 400px;
+      overflow-y: auto;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    }
+    .log-line {
+      margin-bottom: 6px;
+      border-bottom: 1px solid #2d2d2d;
+      padding-bottom: 4px;
+    }
+    .log-line .timestamp {
+      color: #858585;
+      margin-right: 10px;
+    }
+  </style>
 </head>
 <body>
+
+  <h2>Application Output (Inline Struct)</h2>
+  <pre id="web-console"></pre>
+
+  <script>
+    (function() {
+      const consoleDisplay = document.getElementById('web-console');
+      const originalLog = console.log;
+
+      console.log = function(...args) {
+        originalLog.apply(console, args);
+
+        const message = args.map(arg => {
+          if (typeof arg === 'object') {
+            return JSON.stringify(arg, null, 2);
+          }
+          return arg;
+        }).join(' ');
+
+        const logLine = document.createElement('div');
+        logLine.className = 'log-line';
+        
+        const timestamp = new Date().toLocaleTimeString();
+        logLine.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+
+        consoleDisplay.appendChild(logLine);
+        consoleDisplay.scrollTop = consoleDisplay.scrollHeight;
+      };
+    })();
+    console.log("Console bridge ready. Awaiting WebAssembly runtime...");
+    window.Module = window.Module || {};
+  </script>
+
   <script src="shared_struct.js"></script>
+
   <script>
     const StructBridge = {
       ptr: null,
 
       init() {
-        this.ptr = _init_packet();
+        const initFn = window._init_packet || (window.Module && window.Module._init_packet);
+        if (!initFn) throw new Error("WASM initialization function not found!");
+        this.ptr = initFn();
       },
 
       write(id, val, active) {
-        // Map views directly to the pointer address
-        const i32 = new Int32Array(Module.HEAP32.buffer, this.ptr, 3);
-        const f32 = new Float32Array(Module.HEAP32.buffer, this.ptr, 3);
+        if (!window.Module || !window.Module.HEAP32) {
+          throw new Error("WASM HEAP32 configuration array is missing!");
+        }
+        const heap = window.Module.HEAP32.buffer;
+        const i32 = new Int32Array(heap, this.ptr, 3);
+        const f32 = new Float32Array(heap, this.ptr, 3);
         
-        i32[0] = id;       // id (offset 0)
-        f32[1] = val;      // value (offset 4)
-        i32[2] = active;   // active (offset 8)
+        i32[0] = id;       
+        f32[1] = val;      
+        i32[2] = active;   
       },
 
       process() {
-        _process_packet(this.ptr);
+        const processFn = window._process_packet || (window.Module && window.Module._process_packet);
+        if (!processFn) throw new Error("WASM process function not found!");
+        processFn(this.ptr);
       },
 
       read() {
-        const i32 = new Int32Array(Module.HEAP32.buffer, this.ptr, 3);
-        const f32 = new Float32Array(Module.HEAP32.buffer, this.ptr, 3);
+        const heap = window.Module.HEAP32.buffer;
+        const i32 = new Int32Array(heap, this.ptr, 3);
+        const f32 = new Float32Array(heap, this.ptr, 3);
         return { id: i32[0], value: f32[1], active: i32[2] };
       },
 
       free() {
         if (this.ptr) {
-            _free_packet(this.ptr);
+            const freeFn = window._free_packet || (window.Module && window.Module._free_packet);
+            if (freeFn) freeFn(this.ptr);
             this.ptr = null;
         }
       }
     };
 
-    Module.onRuntimeInitialized = () => {
-      StructBridge.init();
+    function runDemo() {
+      console.log("System runtime connected. Executing WASM memory operations...");
       
-      StructBridge.write(101, 2.5, 1);
-      console.log("Input:", StructBridge.read());
-      
-      StructBridge.process();
-      console.log("Output:", StructBridge.read());
+      setTimeout(() => {
+        try {
+          StructBridge.init();
+          
+          StructBridge.write(101, 2.5, 1);
+          console.log("Input Layout Data:", StructBridge.read());
+          
+          StructBridge.process();
+          console.log("Output Layout Data (Processed in C):", StructBridge.read());
 
-      window.addEventListener("beforeunload", () => StructBridge.free());
-    };
+          window.addEventListener("beforeunload", () => StructBridge.free());
+        } catch (err) {
+          console.log("Execution Error: " + err.message);
+        }
+      }, 50);
+    }
+
+    if (window.Module && window.Module.runtimeInitialized) {
+      runDemo();
+    } else {
+      window.Module.onRuntimeInitialized = runDemo;
+    }
   </script>
 </body>
 </html>
